@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NuriChat</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,Helvetica,sans-serif;background:#f4f6f9;color:#172033;height:100vh;height:100dvh;overflow:hidden}
+button,input,textarea{font-family:inherit}
+button{cursor:pointer}
+.hidden{display:none!important}
+
+.auth-screen{min-height:100vh;display:flex;justify-content:center;align-items:center;padding:20px;background:linear-gradient(135deg,#0b1830,#182f5b 55%,#7e1739)}
+.auth-card{width:420px;max-width:100%;background:#fff;border-radius:28px;padding:32px;box-shadow:0 25px 80px rgba(0,0,0,.35)}
+.auth-logo{text-align:center;margin-bottom:25px}
+.logo-circle{width:72px;height:72px;margin:auto;display:flex;align-items:center;justify-content:center;border-radius:23px;background:linear-gradient(135deg,#193c79,#a51f48);color:#fff;font-size:32px;font-weight:bold}
+.auth-logo h1{margin-top:14px;font-size:30px}
+.creator{margin-top:7px;color:#7c8798;font-size:13px}
+.auth-tabs{display:flex;gap:5px;background:#eef1f6;padding:5px;border-radius:13px;margin-bottom:18px}
+.auth-tabs button{flex:1;border:0;background:transparent;padding:11px;border-radius:10px;color:#68748a}
+.auth-tabs button.active{background:#fff;color:#18233a;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.input{width:100%;padding:14px;margin-bottom:11px;border:1px solid #dbe0e8;border-radius:13px;background:#f8f9fb;color:#172033;outline:none}
+.input:focus{border-color:#3c5f9b;background:#fff}
+.primary-button{width:100%;border:0;padding:14px;border-radius:13px;color:#fff;font-weight:bold;background:linear-gradient(135deg,#214a91,#982044)}
+.auth-message{min-height:20px;margin-top:13px;text-align:center;color:#a51f48;font-size:14px}
+
+.app{width:100%;height:100vh;height:100dvh;display:flex;background:#f4f6f9}
+.sidebar{width:330px;flex-shrink:0;display:flex;flex-direction:column;background:#fff;border-right:1px solid #e1e5eb}
+.sidebar-top{padding:20px;border-bottom:1px solid #e6e9ee}
+.brand{font-size:22px;font-weight:800;color:#17243b}
+.brand span{color:#9c2147}
+.me-small{color:#788397;font-size:12px;margin:2px 0 14px}
+.search{width:100%;padding:12px 14px;border:1px solid #e0e4eb;border-radius:13px;outline:none;background:#f5f7fa}
+.search:focus{background:#fff;border-color:#6b7ea4}
+.nav-tabs{display:flex;border-bottom:1px solid #e6e9ee}
+.nav-tabs button{flex:1;border:0;background:#fff;padding:13px 5px;color:#798499;font-size:13px}
+.nav-tabs button.active{color:#20355d;font-weight:bold;border-bottom:2px solid #9d2148}
+.list{flex:1;overflow-y:auto}
+.list-title{padding:14px 18px 8px;color:#8993a4;font-size:12px;font-weight:bold}
+.list-item{display:flex;align-items:center;gap:11px;padding:12px 16px;cursor:pointer;transition:.15s}
+.list-item:hover{background:#f2f5f9}
+.list-item.active{background:#eaf0f9}
+.avatar{width:45px;height:45px;min-width:45px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#dfe8f7,#f1dce4);font-size:21px;overflow:hidden}
+.item-info{flex:1;min-width:0}
+.item-name{font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-sub{margin-top:3px;color:#8a94a5;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.online,.offline{width:9px;height:9px;border-radius:50%}
+.online{background:#25bd68}
+.offline{background:#c6ccd5}
+.sidebar-footer{padding:12px;border-top:1px solid #e4e8ee}
+.footer-button{width:100%;border:0;border-radius:11px;padding:11px;margin-top:5px;background:#eef2f7;color:#30415e}
+.footer-button.red{background:#f8e7ed;color:#982044}
+
+.chat{position:relative;flex:1;min-width:0;display:flex;flex-direction:column}
+.chat-header{height:70px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:10px 20px;background:#fff;border-bottom:1px solid #e1e5eb}
+.chat-header-info{flex:1}
+.chat-title{font-weight:bold;font-size:16px}
+.chat-subtitle{color:#8a94a5;font-size:12px;margin-top:3px}
+.messages{flex:1;overflow-y:auto;padding:24px;background:#eef2f6;display:flex;flex-direction:column;gap:7px}
+.welcome{margin:auto;text-align:center;color:#8993a3}
+.welcome-icon{font-size:45px;margin-bottom:10px}
+.welcome h2{color:#30405a;margin-bottom:5px}
+.message-row{display:flex;width:100%}
+.message-row.mine{justify-content:flex-end}
+.bubble{max-width:min(68%,650px);padding:10px 13px;border-radius:17px;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.05);word-break:break-word;white-space:pre-wrap}
+.mine .bubble{background:linear-gradient(135deg,#244d92,#8d1f42);color:#fff;border-bottom-right-radius:5px}
+.other .bubble{border-bottom-left-radius:5px}
+.message-author{margin-bottom:4px;color:#31558c;font-size:12px;font-weight:bold}
+.message-time{display:block;margin-top:5px;text-align:right;font-size:10px;color:#8993a3}
+.mine .message-time{color:#d5deed}
+.send-area{padding:13px;background:#fff;border-top:1px solid #e1e5eb;display:flex;align-items:flex-end;gap:8px}
+.emoji-button{width:44px;height:44px;border:0;border-radius:12px;background:#f0f3f7;font-size:21px}
+.message-input{flex:1;min-height:44px;max-height:120px;resize:none;padding:12px 14px;border:1px solid #dce1e8;border-radius:14px;outline:none;background:#f7f8fa}
+.message-input:focus{background:#fff;border-color:#8392ad}
+.send-button{width:85px;height:44px;border:0;border-radius:12px;background:linear-gradient(135deg,#244d92,#8d1f42);color:#fff;font-weight:bold}
+.emoji-panel{position:absolute;bottom:70px;left:12px;width:310px;max-width:calc(100vw - 24px);padding:12px;background:#fff;border:1px solid #dfe4eb;border-radius:17px;box-shadow:0 15px 40px rgba(0,0,0,.15);display:grid;grid-template-columns:repeat(8,1fr);gap:5px;z-index:50}
+.emoji-panel button{border:0;background:transparent;border-radius:8px;font-size:21px;padding:5px}
+.emoji-panel button:hover{background:#edf1f5}
+
+.modal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(7,17,31,.55);overflow-y:auto}
+.modal-card{width:420px;max-width:100%;background:#fff;border-radius:23px;padding:25px;box-shadow:0 25px 70px rgba(0,0,0,.3)}
+.modal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.close-button{border:0;background:#f0f2f5;width:34px;height:34px;border-radius:50%;font-size:20px;color:#5d687a}
+.profile-center{text-align:center}
+.profile-avatar{width:90px;height:90px;margin:auto;display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#dce7f8,#f2dce5);font-size:40px}
+.profile-center h2{margin-top:12px}
+.profile-username{margin-top:4px;color:#8993a3}
+.profile-box{padding:13px;margin:10px 0;background:#f4f6f9;border-radius:13px}
+.profile-box small{color:#8a94a5}
+
+.mobile-back{display:none;border:0;background:#f0f3f7;width:38px;height:38px;border-radius:10px;font-size:20px}
+@media(max-width:760px){
+.sidebar{width:100%}
+.chat{display:none}
+.app.chat-open .sidebar{display:none}
+.app.chat-open .chat{display:flex}
+.mobile-back{display:block}
+.bubble{max-width:84%}
+.send-button{width:65px}
+.auth-card{padding:25px 20px}
+}
+</style>
+</head>
+<body>
+
+<section id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="logo-circle">N</div>
+      <h1>NuriChat</h1>
+      <div class="creator">Nurmuhammad Shukhratov yaratgan</div>
+    </div>
+    <div class="auth-tabs">
+      <button id="loginTab" class="active" onclick="showLogin()">Kirish</button>
+      <button id="registerTab" onclick="showRegister()">Akkaunt yaratish</button>
+    </div>
+    <div id="loginForm">
+      <input id="loginUsername" class="input" placeholder="Username" autocomplete="username">
+      <input id="loginPassword" class="input" type="password" placeholder="Parol" autocomplete="current-password">
+      <button class="primary-button" onclick="login()">KIRISH</button>
+    </div>
+    <div id="registerForm" class="hidden">
+      <input id="registerName" class="input" placeholder="Ismingiz">
+      <input id="registerUsername" class="input" placeholder="Username">
+      <input id="registerPassword" class="input" type="password" placeholder="Parol kamida 6 belgi">
+      <input id="registerAvatar" class="input" placeholder="Avatar emoji, masalan 😎">
+      <button class="primary-button" onclick="register()">AKKAUNT YARATISH</button>
+    </div>
+    <div id="authMessage" class="auth-message"></div>
+  </div>
+</section>
+
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="brand">Nuri<span>Chat</span></div>
+      <div id="meSmall" class="me-small"></div>
+      <input id="searchInput" class="search" placeholder="User qidirish..." oninput="searchUsers()">
+    </div>
+    <div class="nav-tabs">
+      <button id="usersTab" onclick="showUsersTab()">👥 Lichka</button>
+      <button id="channelsTab" class="active" onclick="showChannelsTab()">📢 Kanallar</button>
+    </div>
+    <div id="list" class="list"></div>
+    <div class="sidebar-footer">
+      <button class="footer-button" onclick="openMyProfile()">👤 Mening profilim</button>
+      <button class="footer-button red" onclick="logout()">Chiqish</button>
+    </div>
+  </aside>
+
+  <main class="chat">
+    <header class="chat-header">
+      <button class="mobile-back" onclick="closeMobileChat()">←</button>
+      <div id="headerAvatar" class="avatar">💬</div>
+      <div class="chat-header-info">
+        <div id="chatTitle" class="chat-title">NuriChat</div>
+        <div id="chatSubtitle" class="chat-subtitle">Suhbatni tanlang</div>
+      </div>
+    </header>
+    <div id="messages" class="messages">
+      <div class="welcome">
+        <div class="welcome-icon">💬</div>
+        <h2>NuriChat</h2>
+        <p>Chap tomondan chat yoki kanal tanlang.</p>
+      </div>
+    </div>
+    <div id="emojiPanel" class="emoji-panel hidden"></div>
+    <div class="send-area">
+      <button class="emoji-button" onclick="toggleEmoji()">😊</button>
+      <textarea id="messageInput" class="message-input" placeholder="Xabar yozing..." onkeydown="messageKey(event)"></textarea>
+      <button class="send-button" onclick="sendMessage()">Yuborish</button>
+    </div>
+  </main>
+</div>
+
+<div id="profileModal" class="modal hidden">
+  <div class="modal-card">
+    <div class="modal-top">
+      <h2>Profil</h2>
+      <button class="close-button" onclick="closeProfile()">×</button>
+    </div>
+    <div class="profile-center">
+      <div id="profileAvatar" class="profile-avatar">👤</div>
+      <h2 id="profileName"></h2>
+      <div id="profileUsername" class="profile-username"></div>
+    </div>
+    <div class="profile-box"><small>Bio</small><div id="profileBio">-</div></div>
+    <div class="profile-box"><small>Yaratilgan sana</small><div id="profileDate">-</div></div>
+    <input id="editName" class="input" placeholder="Ism">
+    <input id="editAvatar" class="input" placeholder="Avatar emoji">
+    <textarea id="editBio" class="input" placeholder="Bio" maxlength="160"></textarea>
+    <button class="primary-button" onclick="saveProfile()">Profilni saqlash</button>
+  </div>
+</div>
+
+<script>
+var token = localStorage.getItem("nuri_token");
+var me = null, socket = null;
+var selType = null, selId = null, selUser = null;
+var onlineUsers = [], tab = "channels";
+
+var $ = function (id) { return document.getElementById(id); };
+function el(tag, cls, text) {
+  var e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+async function api(url, method, body) {
+  var headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  var r = await fetch(url, { method: method || "GET", headers: headers, body: body ? JSON.stringify(body) : undefined });
+  var d = {};
+  try { d = await r.json(); } catch (e) {}
+  return { ok: r.ok, data: d };
+}
+function firstLetter(t) { return (t || "U").charAt(0).toUpperCase(); }
+function formatTime(v) { return new Date(v).toLocaleTimeString("uz-UZ", { hour: "2-digit", minute: "2-digit" }); }
+function formatDate(v) { return new Date(v).toLocaleDateString("uz-UZ", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+function scrollMessages() { var m = $("messages"); m.scrollTop = m.scrollHeight; }
+function authMsg(t) { $("authMessage").textContent = t || ""; }
+
+/* ===== AUTH ===== */
+function setAuthTab(isLogin) {
+  $("loginForm").classList.toggle("hidden", !isLogin);
+  $("registerForm").classList.toggle("hidden", isLogin);
+  $("loginTab").classList.toggle("active", isLogin);
+  $("registerTab").classList.toggle("active", !isLogin);
+  authMsg("");
+}
+function showLogin() { setAuthTab(true); }
+function showRegister() { setAuthTab(false); }
+
+async function register() {
+  var name = $("registerName").value.trim();
+  var username = $("registerUsername").value.trim();
+  var password = $("registerPassword").value;
+  var avatar = $("registerAvatar").value.trim();
+  if (!name) return authMsg("Ismingizni kiriting.");
+  if (!username) return authMsg("Username kiriting.");
+  if (password.length < 6) return authMsg("Parol kamida 6 belgidan iborat bo'lsin.");
+  authMsg("Akkaunt yaratilmoqda...");
+  try {
+    var r = await api("/api/register", "POST", { name: name, username: username, password: password, avatar: avatar });
+    if (!r.ok) return authMsg(r.data.message || "Xato yuz berdi.");
+    afterAuth(r.data);
+  } catch (e) {
+    authMsg("Serverga ulanib bo'lmadi.");
+  }
+}
+
+async function login() {
+  var username = $("loginUsername").value.trim();
+  var password = $("loginPassword").value;
+  if (!username || !password) return authMsg("Username va parolni kiriting.");
+  authMsg("Kirilmoqda...");
+  try {
+    var r = await api("/api/login", "POST", { username: username, password: password });
+    if (!r.ok) return authMsg(r.data.message || "Xato yuz berdi.");
+    afterAuth(r.data);
+  } catch (e) {
+    authMsg("Server ishlamayapti.");
+  }
+}
+
+function afterAuth(data) {
+  token = data.token;
+  localStorage.setItem("nuri_token", token);
+  me = data.user;
+  openApp();
+}
+
+async function checkLogin() {
+  if (!token) return;
+  try {
+    var r = await api("/api/me");
+    if (!r.ok) {
+      localStorage.removeItem("nuri_token");
+      token = null;
+      return;
+    }
+    me = r.data.user;
+    openApp();
+  } catch (e) {
+    localStorage.removeItem("nuri_token");
+    token = null;
+  }
+}
+
+function openApp() {
+  $("authScreen").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("meSmall").textContent = "@" + me.username;
+  connectSocket();
+  showChannelsTab();
+}
+
+/* ===== SOCKET ===== */
+function connectSocket() {
+  if (socket) socket.disconnect();
+  socket = io();
+
+  socket.on("connect", function () {
+    socket.emit("auth", token);
+    if (selType === "channel") socket.emit("join_channel", selId);
+  });
+  socket.on("auth_error", function () { logout(); });
+
+  socket.on("online_users", function (users) {
+    onlineUsers = users;
+    if (tab === "users") loadUsers($("searchInput").value);
+    updateHeaderStatus();
+  });
+
+  socket.on("new_message", function (m) {
+    if (m.roomType === "channel") {
+      if (selType === "channel" && selId === m.roomId) renderMessage(m);
+      return;
+    }
+    if (m.roomType === "dm") {
+      var belongs = (m.from === me.id && m.to === selId) || (m.to === me.id && m.from === selId);
+      if (selType === "dm" && belongs) renderMessage(m);
+      if (tab === "users") loadUsers($("searchInput").value);
+    }
+  });
+}
+
+/* ===== TABS ===== */
+function showUsersTab() {
+  tab = "users";
+  $("usersTab").classList.add("active");
+  $("channelsTab").classList.remove("active");
+  $("searchInput").classList.remove("hidden");
+  loadUsers();
+}
+function showChannelsTab() {
+  tab = "channels";
+  $("usersTab").classList.remove("active");
+  $("channelsTab").classList.add("active");
+  $("searchInput").classList.add("hidden");
+  loadChannels();
+}
+function searchUsers() {
+  if (tab === "users") loadUsers($("searchInput").value);
+}
+
+/* ===== USERS ===== */
+async function loadUsers(q) {
+  try {
+    var r = await api("/api/users?q=" + encodeURIComponent(q || ""));
+    if (r.data.success) renderUsers(r.data.users);
+  } catch (e) { console.error(e); }
+}
+
+function renderUsers(users) {
+  var list = $("list");
+  list.innerHTML = "";
+  list.appendChild(el("div", "list-title", "FOYDALANUVCHILAR"));
+  if (!users.length) {
+    var empty = el("div", "", "User topilmadi.");
+    empty.style.padding = "20px";
+    empty.style.color = "#8993a3";
+    list.appendChild(empty);
+    return;
+  }
+  users.forEach(function (u) {
+    var item = el("div", "list-item" + (selType === "dm" && selId === u.id ? " active" : ""));
+    item.appendChild(el("div", "avatar", u.avatar || firstLetter(u.name)));
+    var info = el("div", "item-info");
+    info.appendChild(el("div", "item-name", u.name));
+    info.appendChild(el("div", "item-sub", "@" + u.username));
+    item.appendChild(info);
+    item.appendChild(el("div", onlineUsers.indexOf(u.id) >= 0 ? "online" : "offline"));
+    item.onclick = function () { openDM(u); };
+    list.appendChild(item);
+  });
+}
+
+/* ===== CHANNELS ===== */
+async function loadChannels() {
+  try {
+    var r = await api("/api/channels");
+    if (r.data.success) renderChannels(r.data.channels);
+  } catch (e) { console.error(e); }
+}
+
+function renderChannels(channels) {
+  var list = $("list");
+  list.innerHTML = "";
+  list.appendChild(el("div", "list-title", "KANALLAR"));
+  channels.forEach(function (c) {
+    var item = el("div", "list-item" + (selType === "channel" && selId === c.id ? " active" : ""));
+    item.appendChild(el("div", "avatar", c.emoji || "📢"));
+    var info = el("div", "item-info");
+    info.appendChild(el("div", "item-name", c.name));
+    info.appendChild(el("div", "item-sub", c.description));
+    item.appendChild(info);
+    item.onclick = function () { openChannel(c); };
+    list.appendChild(item);
+  });
+}
+
+/* ===== OPEN CHAT ===== */
+async function openDM(u) {
+  selType = "dm"; selId = u.id; selUser = u;
+  $("app").classList.add("chat-open");
+  $("headerAvatar").textContent = u.avatar || firstLetter(u.name);
+  $("chatTitle").textContent = u.name;
+  updateHeaderStatus();
+  await loadHistory("dm", u.id);
+  if (tab === "users") loadUsers($("searchInput").value);
+}
+
+async function openChannel(c) {
+  selType = "channel"; selId = c.id; selUser = null;
+  $("app").classList.add("chat-open");
+  $("headerAvatar").textContent = c.emoji || "📢";
+  $("chatTitle").textContent = c.name;
+  $("chatSubtitle").textContent = c.description || "Kanal";
+  if (socket) socket.emit("join_channel", c.id);
+  await loadHistory("channel", c.id);
+  if (tab === "channels") loadChannels();
+}
+
+async function loadHistory(type, id) {
+  $("messages").innerHTML = "";
+  try {
+    var r = await api("/api/messages/" + encodeURIComponent(type) + "/" + encodeURIComponent(id));
+    if (!r.data.success) return showWelcome("Xabarlarni olishda xato.");
+    if (!r.data.messages.length) return showWelcome("Hali xabar yo'q. Birinchi xabarni siz yozing.");
+    r.data.messages.forEach(renderMessage);
+    scrollMessages();
+  } catch (e) {
+    showWelcome("Server bilan bog'lanishda xato.");
+  }
+}
+
+function showWelcome(text) {
+  var box = $("messages");
+  box.innerHTML = "";
+  var w = el("div", "welcome");
+  w.appendChild(el("div", "welcome-icon", "💬"));
+  w.appendChild(el("h2", "", "NuriChat"));
+  w.appendChild(el("p", "", text));
+  box.appendChild(w);
+}
+
+function renderMessage(m) {
+  var w = $("messages").querySelector(".welcome");
+  if (w) w.remove();
+  var mine = m.from === me.id;
+  var row = el("div", "message-row " + (mine ? "mine" : "other"));
+  var bubble = el("div", "bubble");
+  if (selType === "channel" && !mine) {
+    bubble.appendChild(el("div", "message-author", (m.fromAvatar || "👤") + " " + m.fromName));
+  }
+  bubble.appendChild(el("div", "", m.text));
+  bubble.appendChild(el("span", "message-time", formatTime(m.createdAt)));
+  row.appendChild(bubble);
+  $("messages").appendChild(row);
+  scrollMessages();
+}
+
+/* ===== SEND ===== */
+function sendMessage() {
+  var input = $("messageInput");
+  var text = input.value.trim();
+  if (!text) return;
+  if (!selType) { alert("Avval chat yoki kanal tanlang."); return; }
+  if (!socket) return;
+  if (selType === "channel") socket.emit("channel_message", { channelId: selId, text: text });
+  if (selType === "dm") socket.emit("dm_message", { to: selId, text: text });
+  input.value = "";
+  input.focus();
+}
+function messageKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+/* ===== EMOJI ===== */
+var emojis = ["😀","😃","😄","😁","😆","😅","😂","🤣","😊","🙂","🙃","😉","😎","😍","🥰","😘","😜","🤔","😐","😶","🙄","😴","😭","😡","🤯","😱","🤩","🥳","😇","🤝","👍","👎","👏","🙏","❤️","🔥","⭐","💯","🎉","🚀","💙","😈","👀","💪","🫡","✅","❌","💬","📢","🎮","⚽","🏆","🌟","✨","💡","🎯","🌙","☀️","🌍"];
+function buildEmojiPanel() {
+  var p = $("emojiPanel");
+  emojis.forEach(function (e) {
+    var b = el("button", "", e);
+    b.onclick = function () {
+      $("messageInput").value += e;
+      $("messageInput").focus();
+    };
+    p.appendChild(b);
+  });
+}
+function toggleEmoji() { $("emojiPanel").classList.toggle("hidden"); }
+
+/* ===== PROFILE ===== */
+function fillProfile() {
+  $("profileAvatar").textContent = me.avatar || firstLetter(me.name);
+  $("profileName").textContent = me.name;
+  $("profileUsername").textContent = "@" + me.username;
+  $("profileBio").textContent = me.bio || "Bio yo'q";
+  $("profileDate").textContent = formatDate(me.createdAt);
+}
+function openMyProfile() {
+  fillProfile();
+  $("editName").value = me.name;
+  $("editAvatar").value = me.avatar || "";
+  $("editBio").value = me.bio || "";
+  $("profileModal").classList.remove("hidden");
+}
+function closeProfile() { $("profileModal").classList.add("hidden"); }
+
+async function saveProfile() {
+  var name = $("editName").value.trim();
+  if (!name) { alert("Ism bo'sh bo'lmasin."); return; }
+  try {
+    var r = await api("/api/profile", "PUT", {
+      name: name,
+      avatar: $("editAvatar").value.trim(),
+      bio: $("editBio").value.trim()
+    });
+    if (!r.ok) { alert(r.data.message || "Xato."); return; }
+    me = r.data.user;
+    fillProfile();
+    closeProfile();
+    if (tab === "users") loadUsers($("searchInput").value);
+  } catch (e) {
+    alert("Profilni saqlab bo'lmadi.");
+  }
+}
+
+/* ===== STATUS / MOBILE / LOGOUT ===== */
+function updateHeaderStatus() {
+  if (selType === "channel") { $("chatSubtitle").textContent = $("chatSubtitle").textContent || "Kanal"; return; }
+  if (selType !== "dm" || !selUser) return;
+  $("chatSubtitle").textContent = onlineUsers.indexOf(selUser.id) >= 0 ? "🟢 online" : "offline";
+}
+function closeMobileChat() { $("app").classList.remove("chat-open"); }
+
+async function logout() {
+  try { await api("/api/logout", "POST"); } catch (e) {}
+  if (socket) { socket.disconnect(); socket = null; }
+  localStorage.removeItem("nuri_token");
+  token = null; me = null;
+  selType = null; selId = null; selUser = null;
+  $("app").classList.add("hidden");
+  $("authScreen").classList.remove("hidden");
+  showLogin();
+}
+
+buildEmojiPanel();
+checkLogin();
+</script>
+</body>
+</html>
